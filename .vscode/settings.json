@@ -1,7 +1,9 @@
 {
     "cSpell.words": [
         "dotenv",
+        "kuso",
         "Kusogaki",
-        "Sharded"
+        "poolclass",
+        "sessionmaker"
     ]
 }
