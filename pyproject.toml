@@ -15,9 +15,9 @@ sqlalchemy = "^2.0.36"
 psycopg2-binary = "^2.9.10"
 
 [tool.poetry.group.dev.dependencies]
-ruff = "^0.8.6"
+ruff = "^0.9.1"
 pre-commit = "^4.0.1"
-poetry-plugin-export = "^1.8.0"
+poetry-plugin-export = "^1.9.0"
 deptry = "^0.21.2"
 
 [tool.poetry.scripts]
