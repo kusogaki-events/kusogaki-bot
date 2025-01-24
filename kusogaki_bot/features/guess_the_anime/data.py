@@ -8,7 +8,7 @@ from typing import Dict, List, Optional, Set, Tuple
 from sqlalchemy import Column, Index, Integer, String, desc, func, select
 from sqlalchemy.orm import declarative_base
 
-from kusogaki_bot.core.exceptions import DatabaseError
+from kusogaki_bot.core import DatabaseError
 
 Base = declarative_base()
 

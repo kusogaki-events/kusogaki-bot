@@ -2,11 +2,10 @@ from typing import Optional
 
 from discord.ext import commands
 
-from kusogaki_bot.core.base_cog import BaseCog
-from kusogaki_bot.core.bot import KusogakiBot
+from kusogaki_bot.core import BaseCog, KusogakiBot
 from kusogaki_bot.features.help.data import HelpView
 from kusogaki_bot.features.help.service import HelpService
-from kusogaki_bot.shared.utils.embeds import EmbedType
+from kusogaki_bot.shared import EmbedType
 
 
 class HelpCog(BaseCog):

@@ -4,9 +4,12 @@ from datetime import datetime
 
 from sqlalchemy import Column, DateTime, Integer, String
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import declarative_base
 from sqlalchemy.sql import func
 
-from kusogaki_bot.core.db import Base, Database
+from kusogaki_bot.core import Database
+
+Base = declarative_base()
 
 
 class FoodCounter(Base):

@@ -5,7 +5,7 @@ from discord.ext import commands
 
 from kusogaki_bot.core import BaseCog, KusogakiBot
 from kusogaki_bot.features.poll.service import PollError, PollService
-from kusogaki_bot.shared.utils.permissions import check_permission
+from kusogaki_bot.shared import check_permission
 
 
 class PollCog(BaseCog):

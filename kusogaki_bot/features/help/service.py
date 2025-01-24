@@ -2,7 +2,7 @@ from typing import Dict, Optional, Tuple
 
 from discord import Embed, File
 
-from kusogaki_bot.shared.utils.embeds import EmbedType, get_embed
+from kusogaki_bot.shared import EmbedType, get_embed
 
 
 class HelpService:

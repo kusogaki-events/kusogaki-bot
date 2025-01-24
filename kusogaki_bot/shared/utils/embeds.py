@@ -4,8 +4,6 @@ from typing import Optional, Tuple
 
 from discord import Embed, File
 
-from kusogaki_bot.shared.services.image_service import image_service
-
 
 class EmbedColor(int, Enum):
     NORMAL = 0x6A1B9A
@@ -24,6 +22,8 @@ class EmbedType(Enum):
 async def get_embed(
     type: EmbedType, title: str, description: str, thumbnail_path: Optional[str] = None
 ) -> Tuple[Embed, Optional[File]]:
+    from kusogaki_bot.shared.services.image_service import image_service
+
     """
     Create a Discord embed with specified type, title, and description.
 

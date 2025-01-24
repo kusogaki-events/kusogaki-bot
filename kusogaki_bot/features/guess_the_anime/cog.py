@@ -6,12 +6,10 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from kusogaki_bot.core import KusogakiBot
-from kusogaki_bot.core.base_cog import BaseCog
-from kusogaki_bot.core.db import Database
+from kusogaki_bot.core import BaseCog, Database, KusogakiBot
 from kusogaki_bot.features.guess_the_anime.data import GTARepository
 from kusogaki_bot.features.guess_the_anime.service import GTAGameService
-from kusogaki_bot.shared.utils.embeds import EmbedColor, EmbedType
+from kusogaki_bot.shared import EmbedColor, EmbedType
 
 logger = logging.getLogger(__name__)
 
