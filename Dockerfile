@@ -1,14 +1,12 @@
-FROM python:3.12-slim
+FROM python:3.13-1-slim
 
 WORKDIR /app
 
-RUN pip install poetry
+RUN pip install uv
 
-COPY pyproject.toml poetry.lock* ./
+COPY pyproject.toml uv.lock ./
 
-RUN poetry config virtualenvs.create false
-
-RUN poetry install --only main
+RUN uv pip install --system -r pyproject.toml
 
 COPY . .
 
