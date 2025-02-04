@@ -1,29 +1,24 @@
-[tool.poetry]
-name = "kusogaki_bot"
+[project]
+name = "kusogaki-bot"
 version = "0.5.0"
-description = "A discord bot for the Kusogaki discord server"
-authors = ["Kusogaki"]
-license = "GPL-3.0-or-later"
+description = "Add your description here"
 readme = "README.md"
-package-mode = false
+requires-python = ">=3.13"
+dependencies = [
+    "audioop-lts>=0.2.1",
+    "deptry>=0.23.0",
+    "discord-py>=2.4.0",
+    "psycopg2-binary>=2.9.10",
+    "python-dotenv>=1.0.1",
+    "sqlalchemy>=2.0.37",
+    "watchdog>=6.0.0",
+]
 
-[tool.poetry.dependencies]
-python = "^3.12"
-discord-py = "^2.4.0"
-python-dotenv = "^1.0.1"
-sqlalchemy = "^2.0.36"
-psycopg2-binary = "^2.9.10"
-watchdog = "^6.0.0"
-
-[tool.poetry.group.dev.dependencies]
-ruff = "^0.9.4"
-pre-commit = "^4.0.1"
-poetry-plugin-export = "^1.8.0"
-deptry = "^0.23.0"
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+[dependency-groups]
+dev = [
+    "pre-commit>=4.1.0",
+    "ruff>=0.9.4",
+]
 
 [tool.ruff.format]
 quote-style = "single"
