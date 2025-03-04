@@ -18,7 +18,6 @@ Refer to [CONTRIBUTING.md](https://github.com/kusogaki-events/kusogaki-bot/blob/
 ### GTA Quiz Game Commands
 Base command: `gtaquiz` (alias: `gq`)
 * `kuso gtaquiz start [difficulty]`: Start a new game session. If difficulty is specified (easy/medium/hard), only images of that difficulty will appear. Leave it unspecified to experience progressive difficulty similar to GTA's adaptive system on AniList
-* `kuso gtaquiz join`: Join an ongoing game before it starts
 * `kuso gtaquiz stop`: Stop the current game
 * `kuso gtaquiz leaderboard`: View global rankings
 * `kuso gtaquiz score`: Check your stats

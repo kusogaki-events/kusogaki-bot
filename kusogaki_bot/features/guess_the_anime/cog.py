@@ -107,6 +107,75 @@ class AnswerView(discord.ui.View):
         return button_callback
 
 
+class JoinView(discord.ui.View):
+    """
+    A Discord UI View for handling the join button in the Guess The Anime quiz game.
+
+    Attributes:
+        cog (GTAQuizCog): The cog instance that owns this view
+    """
+
+    def __init__(self, cog: 'GTAQuizCog') -> None:
+        """
+        Initialize the view with a join button.
+
+        Args:
+            cog (GTAQuizCog): The cog instance that owns this view
+        """
+        super().__init__(timeout=None)
+        self.cog = cog
+
+        button = discord.ui.Button(
+            label='Join',
+            style=discord.ButtonStyle.primary,
+            custom_id='join',
+            row=0,
+        )
+        button.callback = self.make_callback()
+        self.add_item(button)
+
+    def make_callback(
+        self,
+    ) -> Callable[[discord.Interaction], Awaitable[None]]:
+        """
+        Create a callback function for the join button.
+
+        Returns:
+            Callable: Async callback function that handles button interactions
+        """
+
+        async def button_callback(interaction: discord.Interaction):
+            try:
+                game_state = self.cog.service.get_game(interaction.channel.id)
+                if not game_state:
+                    await interaction.response.send_message(
+                        'No active game found!', ephemeral=True
+                    )
+                    return
+
+                await self.cog.join_game(interaction=interaction)
+
+            except Exception as e:
+                logger.error(f'Error in button callback: {e}', exc_info=True)
+                if game_state:
+                    try:
+                        game_state.answered_players.remove(interaction.user.id)
+                    except KeyError:
+                        pass
+                try:
+                    await interaction.response.send_message(
+                        'Something went wrong joining the game. Please try again.',
+                        ephemeral=True,
+                    )
+                except discord.errors.InteractionResponded:
+                    await interaction.followup.send(
+                        'Something went wrong joining the game. Please try again.',
+                        ephemeral=True,
+                    )
+
+        return button_callback
+
+
 class GTAQuizCog(BaseCog):
     """
     Cog for the Guess The Anime quiz game. Handles all game-related commands and interactions.
@@ -188,15 +257,17 @@ class GTAQuizCog(BaseCog):
                 await ctx.send(result.message)
                 return
 
+            view = JoinView(self)
+
             embed, file = await self.create_embed(
                 EmbedType.NORMAL,
                 '🎮 Guess The Anime Quiz',
                 f'{result.message}\n'
                 f'Starting player: {ctx.author.mention}\n\n'
-                'Type `kuso gq join` to join!',
+                'Press the button to join!',
             )
 
-            msg = await ctx.send(embed=embed, file=file)
+            msg = await ctx.send(embed=embed, file=file, view=view)
 
             logger.info(f'Starting countdown for channel {ctx.channel.id}')
             task = asyncio.create_task(self._run_countdown(ctx.channel.id, msg))
@@ -223,8 +294,7 @@ class GTAQuizCog(BaseCog):
                 self.active_countdowns[ctx.channel.id].cancel()
                 del self.active_countdowns[ctx.channel.id]
 
-    @gta_quiz.command(name='join')
-    async def join_game(self, ctx: commands.Context) -> None:
+    async def join_game(self, interaction: discord.Interaction) -> None:
         """
         Join an ongoing game in the current channel.
 
@@ -238,12 +308,15 @@ class GTAQuizCog(BaseCog):
         """
         try:
             result = self.service.add_player(
-                ctx.channel.id, ctx.author.id, ctx.author.name
+                interaction.channel.id, interaction.user.id, interaction.user.name
             )
-            await ctx.send(result.message)
+            await interaction.response.send_message(result.message, ephemeral=True)
+
         except Exception as e:
             logger.error(f'Error joining game: {e}')
-            await ctx.send('An error occurred while joining the game.')
+            await interaction.response.send_message(
+                'An error occurred while joining the game.', ephemeral=True
+            )
 
     @gta_quiz.command(name='stop')
     async def stop_game(self, ctx: commands.Context) -> None:
@@ -371,7 +444,7 @@ class GTAQuizCog(BaseCog):
                         f'Game starting in `{countdown}` seconds!\n'
                         f'{progress_bar}\n'
                         f'Starting player: {message.embeds[0].description.split("Starting player: ")[1].split("\n")[0]}\n\n'
-                        'Type `kuso gq join` to join!'
+                        'Press the button to join!'
                     ),
                 )
 
