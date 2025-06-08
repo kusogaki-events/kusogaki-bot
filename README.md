@@ -40,3 +40,9 @@ Base command: `gtaquiz` (alias: `gq`)
   * `options`: Poll options (space-separated)
 * `kuso endpoll <question>`: End an active poll
 * `kuso listpolls`: List all active polls
+
+### Animanga Recommendation Commands
+* `recommend <username> [genre] [anime/manga]` (alias: `rec`):
+  * `question`: Anilist username to provide recommendations for
+  * `genre`: If specified, limit recommendations to a specific genre
+  * `anime/manga`: Specify to recommend anime or manga (defaults to anime)
