@@ -82,6 +82,27 @@ Track food mentions for Awaiz.
 • `awaizcount` → `drywall`
 """,
             },
+            'recommend': {
+                'title': 'Animanga Recommendations',
+                'description': """
+**Usage:**
+`kuso recommend <anilist username> [genre] [media type]`
+
+**Parameters:**
+• `anilist username` - Anilist username to get recommendations for
+• `genre` [Optional]- Obtains recommendations only from the genre if specified. If the genre has spaces, use quotes.
+• `media type` [Optional] - Specify media type (anime or manga), defaults to anime
+
+**Examples:**
+```
+kuso recommend garlic romance anime
+kuso rec awaiz
+kuso rec senescu "Slice of Life" manga
+```
+
+**Aliases:** rec
+""",
+            },
         }
 
     async def get_overview_embed(self) -> Tuple[Embed, Optional[File]]:
@@ -92,6 +113,7 @@ Welcome to the Kusogaki Bot! Here's a quick overview of what I can do:
 * **GTA Quiz Game**: Run GTA style guessing game
 * **Polls**: Create and manage polls (Staff only)
 * **Food Counter**: Track food mentions
+* **Recommendations**: Recommend anime and manga
 
 ### Command List
 To see all available commands, click the `View all Commands` button below.
@@ -122,6 +144,9 @@ For detailed information about a command, use: `kuso help <command>`.
 **Food Counter Commands**
 • `kuso awaiz` (alias: `caseoh`) - Increment food counter
 • `kuso awaizcount` (alias: `drywall`) - Display current count
+
+**Recommendation Commands**
+• `kuso recommend (alias: `rec`) <anilist username> [genre] [media type]` - Recommend an anime/manga with optional genre
 """
         return await get_embed(EmbedType.INFORMATION, 'All Commands', description)
 

@@ -10,6 +10,8 @@ class EmbedColor(int, Enum):
     INFORMATION = 0x546E7A
     WARNING = 0xE67E22
     ERROR = 0xE74C3C
+    MANGA = 0x7CD553
+    ANIME = 0x3BAFEB
 
 
 class EmbedType(Enum):
@@ -17,6 +19,8 @@ class EmbedType(Enum):
     INFORMATION = EmbedColor.INFORMATION
     WARNING = EmbedColor.WARNING
     ERROR = EmbedColor.ERROR
+    MANGA = EmbedColor.MANGA
+    ANIME = EmbedColor.ANIME
 
 
 async def get_embed(
