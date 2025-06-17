@@ -89,34 +89,3 @@ class FoodCounterRepository:
         except SQLAlchemyError as e:
             logging.error(f'Error clearing food counters: {str(e)}')
             self.db.rollback()
-
-
-class FoodMention(Base):
-    """Database model for tracked food words"""
-
-    __tablename__ = 'food_mentions'
-
-    id = Column(Integer, primary_key=True)
-    food_item = Column(String, nullable=False)
-
-
-class FoodMentionRepository:
-    """Repository class for food mentions"""
-
-    def __init__(self):
-        """Initialize database connection"""
-        self.db = Database.get_instance()
-
-    def get_all_food_items(self) -> list[str]:
-        """
-        Get all food items from the database
-
-        Returns:
-            list[str]: List of food items to track
-        """
-        try:
-            mentions = self.db.query(FoodMention).all()
-            return [mention.food_item.lower() for mention in mentions]
-        except SQLAlchemyError as e:
-            logging.error(f'Error loading food mentions: {str(e)}')
-            return []

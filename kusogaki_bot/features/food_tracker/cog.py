@@ -1,4 +1,4 @@
-from discord import File, Message
+from discord import File
 from discord.ext import commands
 
 from config import AWAIZ_USER_ID
@@ -13,13 +13,6 @@ class FoodCounterCog(BaseCog):
     def __init__(self, bot: KusogakiBot):
         super().__init__(bot)
         self.service = FoodCounterService()
-
-    async def is_command(self, message: Message) -> bool:
-        """Check if message content starts with any command prefix"""
-        prefixes = await self.bot.get_prefix(message)
-        if isinstance(prefixes, str):
-            return message.content.startswith(prefixes)
-        return any(message.content.startswith(prefix) for prefix in prefixes)
 
     async def send_food_mention_embed(self, channel, user, count: int):
         """Create and send food mention embed"""
@@ -37,19 +30,6 @@ class FoodCounterCog(BaseCog):
         embed.set_thumbnail(url='attachment://caseoh.png')
 
         await channel.send(embed=embed, file=file)
-
-    @commands.Cog.listener()
-    async def on_message(self, message):
-        """Listen for messages containing food mentions"""
-        if message.author.bot or await self.is_command(message):
-            return
-
-        if str(message.author.id) != AWAIZ_USER_ID:
-            return
-
-        if self.service.check_message_for_food(message.content):
-            count = self.service.increment_counter(AWAIZ_USER_ID)
-            await self.send_food_mention_embed(message.channel, message.author, count)
 
     @commands.command(name='awaiz', aliases=['caseoh'])
     async def food_mention(self, ctx: commands.Context):
