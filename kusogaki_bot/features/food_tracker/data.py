@@ -1,91 +1,64 @@
-import logging
-import os
-from datetime import datetime
+from pymongo.asynchronous.database import AsyncCollection, AsyncDatabase
 
-from sqlalchemy import Column, DateTime, Integer, String
-from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import declarative_base
-from sqlalchemy.sql import func
-
-from kusogaki_bot.core import Database
-
-Base = declarative_base()
-
-
-class FoodCounter(Base):
-    """Database model for food counter"""
-
-    __tablename__ = (
-        'food_counters_dev'
-        if os.getenv('BOT_ENV', 'development') == 'development'
-        else 'food_counters'
-    )
-
-    user_id = Column(String, primary_key=True)
-    count = Column(Integer, default=0)
-    last_updated = Column(DateTime, default=func.now(), onupdate=func.now())
-
-    def increment(self) -> int:
-        """Increment counter and update timestamp"""
-        self.count += 1
-        self.last_updated = datetime.now()
-        return self.count
+from config import AWAIZ_USER_ID
+from kusogaki_bot.core.db import MongoDatabase
 
 
 class FoodCounterRepository:
     """Repository class for food counter persistence"""
 
+    db: AsyncDatabase = None
+    food_counter_collection: AsyncCollection = None
+
     def __init__(self):
         """Initialize database connection"""
-        self.db = Database.get_instance()
+        self.db = MongoDatabase.get_db()
+        self.food_counter_collection = self.db['food-counters']
 
-    def get_counter(self, user_id: str) -> FoodCounter:
+    async def get_counter(self) -> int:
         """
-        Get a user's food counter from the database
+        Get a awaiz's food counter from the database
 
         Args:
             user_id (str): Discord user ID
 
         Returns:
-            FoodCounter: Counter object (new if not found)
+            int: The current food counter
         """
-        try:
-            counter = self.db.query(FoodCounter).filter_by(user_id=user_id).first()
-            if not counter:
-                counter = FoodCounter(user_id=user_id, count=0)
-            return counter
-        except SQLAlchemyError as e:
-            logging.error(f'Error loading food counter: {str(e)}')
-            return FoodCounter(user_id=user_id, count=0)
 
-    def save_counter(self, counter: FoodCounter) -> None:
+        food_counter_item: AsyncCollection = await self.food_counter_collection.find_one()
+
+        return food_counter_item.get('count', 0)
+
+    async def inc_counter(self) -> int:
+        """
+        Save a food counter to the database
+
+        Args:
+            counter (FoodCounter): Counter to save
+
+        Returns:
+            new_count (int) : New Counter value after the increment
+        """
+
+        query = {'user_id': AWAIZ_USER_ID}
+
+        update = {'$inc': {'count': 1}}
+
+        await self.food_counter_collection.update_one(query, update)
+
+        return await self.get_counter()
+
+    async def save_counter(self, counter: int) -> None:
         """
         Save a food counter to the database
 
         Args:
             counter (FoodCounter): Counter to save
         """
-        try:
-            if counter.count > 0:
-                if (
-                    not self.db.query(FoodCounter)
-                    .filter_by(user_id=counter.user_id)
-                    .first()
-                ):
-                    self.db.add(counter)
-                self.db.commit()
-            else:
-                self.db.query(FoodCounter).filter_by(user_id=counter.user_id).delete()
-                self.db.commit()
-        except SQLAlchemyError as e:
-            logging.error(f'Error saving food counter: {str(e)}')
-            self.db.rollback()
 
-    def clear_all(self) -> None:
-        """Clear all food counters (for testing)"""
-        try:
-            self.db.query(FoodCounter).delete()
-            self.db.commit()
-        except SQLAlchemyError as e:
-            logging.error(f'Error clearing food counters: {str(e)}')
-            self.db.rollback()
+        query = {'user_id': AWAIZ_USER_ID}
+
+        update = {'$inc': {'count': 1}}
+
+        await self.food_counter_collection.update_one(query, update)

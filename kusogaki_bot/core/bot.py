@@ -5,6 +5,8 @@ from typing import List
 from discord import Intents, Message
 from discord.ext import commands
 
+from kusogaki_bot.core.db import MongoDatabase
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -27,6 +29,8 @@ class KusogakiBot(commands.AutoShardedBot):
             intents=intents,
             help_command=None,
         )
+
+        MongoDatabase.connect()
 
     async def get_prefix(self, message: Message) -> List[str]:
         """

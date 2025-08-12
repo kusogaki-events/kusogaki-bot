@@ -2,7 +2,7 @@ import logging
 import sys
 from typing import NoReturn
 
-from config import TOKEN
+from config import TEST_TOKEN
 from kusogaki_bot.core.bot import KusogakiBot
 
 logger = logging.getLogger(__name__)
@@ -14,7 +14,7 @@ def main() -> NoReturn:
     """
     try:
         bot = KusogakiBot()
-        bot.run(TOKEN)
+        bot.run(TEST_TOKEN)
     except Exception as e:
         logger.critical(f'Failed to start bot: {str(e)}')
         sys.exit(1)

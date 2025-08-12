@@ -6,7 +6,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from kusogaki_bot.core import BaseCog, Database, KusogakiBot
+from kusogaki_bot.core import BaseCog, KusogakiBot
 from kusogaki_bot.features.guess_the_anime.data import GTARepository
 from kusogaki_bot.features.guess_the_anime.service import GTAGameService
 from kusogaki_bot.shared import EmbedColor, EmbedType
@@ -24,9 +24,7 @@ class AnswerView(discord.ui.View):
         processing_lock (asyncio.Lock): Lock to prevent concurrent answer processing
     """
 
-    def __init__(
-        self, cog: 'GTAQuizCog', options: List[str], correct_answer: str
-    ) -> None:
+    def __init__(self, cog: 'GTAQuizCog', options: List[str], correct_answer: str) -> None:
         """
         Initialize the answer view with buttons for each option.
 
@@ -50,9 +48,7 @@ class AnswerView(discord.ui.View):
             button.callback = self.make_callback(option)
             self.add_item(button)
 
-    def make_callback(
-        self, answer: str
-    ) -> Callable[[discord.Interaction], Awaitable[None]]:
+    def make_callback(self, answer: str) -> Callable[[discord.Interaction], Awaitable[None]]:
         """
         Create a callback function for an answer button.
 
@@ -67,23 +63,17 @@ class AnswerView(discord.ui.View):
             try:
                 game_state = self.cog.service.get_game(interaction.channel.id)
                 if not game_state:
-                    await interaction.response.send_message(
-                        'No active game found!', ephemeral=True
-                    )
+                    await interaction.response.send_message('No active game found!', ephemeral=True)
                     return
 
                 async with self.processing_lock:
                     if interaction.user.id in game_state.answered_players:
-                        await interaction.response.send_message(
-                            'You already answered!', ephemeral=True
-                        )
+                        await interaction.response.send_message('You already answered!', ephemeral=True)
                         return
 
                     game_state.answered_players.add(interaction.user.id)
 
-                    await self.cog._handle_answer(
-                        interaction, answer, self.correct_answer
-                    )
+                    await self.cog._handle_answer(interaction, answer, self.correct_answer)
                     await interaction.response.defer()
 
             except Exception as e:
@@ -148,9 +138,7 @@ class JoinView(discord.ui.View):
             try:
                 game_state = self.cog.service.get_game(interaction.channel.id)
                 if not game_state:
-                    await interaction.response.send_message(
-                        'No active game found!', ephemeral=True
-                    )
+                    await interaction.response.send_message('No active game found!', ephemeral=True)
                     return
 
                 await self.cog.join_game(interaction=interaction)
@@ -193,7 +181,7 @@ class GTAQuizCog(BaseCog):
             bot (KusogakiBot): The bot instance this cog is attached to
         """
         super().__init__(bot)
-        repository = GTARepository(Database.get_instance)
+        repository = GTARepository()
         self.service = GTAGameService(repository)
         self.active_countdowns: Dict[int, asyncio.Task] = {}
 
@@ -219,15 +207,11 @@ class GTAQuizCog(BaseCog):
             ctx (commands.Context): The command context
         """
         if ctx.invoked_subcommand is None:
-            await ctx.send(
-                'Available commands: `start`, `stop`, `leaderboard`, `score`'
-            )
+            await ctx.send('Available commands: `start`, `stop`, `leaderboard`, `score`')
 
     @gta_quiz.command(name='start')
     @app_commands.describe(difficulty='Game difficulty (easy, medium, hard, normal)')
-    async def start_game(
-        self, ctx: commands.Context, difficulty: str = 'normal'
-    ) -> None:
+    async def start_game(self, ctx: commands.Context, difficulty: str = 'normal') -> None:
         """
         Start a new Guess The Anime quiz game in the current channel.
 
@@ -246,26 +230,19 @@ class GTAQuizCog(BaseCog):
                 await ctx.send('A game is already starting in this channel!')
                 return
 
-            result = self.service.create_game(
-                ctx.channel.id, ctx.author.id, difficulty, ctx.author.name
-            )
+            result = self.service.create_game(ctx.channel.id, ctx.author.id, difficulty, ctx.author.name)
             if not result.success:
                 await ctx.send(result.message)
                 return
 
             view = JoinView(self)
 
-            player_names = (
-                f'<@{player_id}>'
-                for player_id in self.service.get_game(ctx.channel.id).players.keys()
-            )
+            player_names = (f'<@{player_id}>' for player_id in self.service.get_game(ctx.channel.id).players.keys())
 
             embed, file = await self.create_embed(
                 EmbedType.NORMAL,
                 '🎮 Guess The Anime Quiz',
-                f'{result.message}\n'
-                f'Player(s): {", ".join(player_names)}\n\n'
-                'Press the button to join!',
+                f'{result.message}\nPlayer(s): {", ".join(player_names)}\n\nPress the button to join!',
             )
 
             msg = await ctx.send(embed=embed, file=file, view=view)
@@ -279,9 +256,7 @@ class GTAQuizCog(BaseCog):
                     task.result()
                 except Exception as e:
                     logger.error(f'Countdown task failed: {e}', exc_info=True)
-                    asyncio.create_task(
-                        ctx.send('An error occurred during game startup.')
-                    )
+                    asyncio.create_task(ctx.send('An error occurred during game startup.'))
                 finally:
                     if ctx.channel.id in self.active_countdowns:
                         del self.active_countdowns[ctx.channel.id]
@@ -308,9 +283,7 @@ class GTAQuizCog(BaseCog):
             Exception: If there's an error adding the player to the game
         """
         try:
-            result = self.service.add_player(
-                interaction.channel.id, interaction.user.id, interaction.user.name
-            )
+            result = self.service.add_player(interaction.channel.id, interaction.user.id, interaction.user.name)
             if result.success:
                 await interaction.response.send_message(result.message)
             else:
@@ -318,9 +291,7 @@ class GTAQuizCog(BaseCog):
 
         except Exception as e:
             logger.error(f'Error joining game: {e}')
-            await interaction.response.send_message(
-                'An error occurred while joining the game.', ephemeral=True
-            )
+            await interaction.response.send_message('An error occurred while joining the game.', ephemeral=True)
 
     @gta_quiz.command(name='stop')
     async def stop_game(self, ctx: commands.Context) -> None:
@@ -363,16 +334,12 @@ class GTAQuizCog(BaseCog):
             entries = self.service.get_leaderboard()
 
             if not entries:
-                embed, file = await self.create_embed(
-                    EmbedType.NORMAL, '🏆 Leaderboard', 'No scores yet!'
-                )
+                embed, file = await self.create_embed(EmbedType.NORMAL, '🏆 Leaderboard', 'No scores yet!')
             else:
                 description = []
                 for i, entry in enumerate(entries, 1):
                     medal = {1: '🥇', 2: '🥈', 3: '🥉'}.get(i, '🎮')
-                    description.append(
-                        f'{medal} #{i} - {entry.display_name}: {entry.highest_score} points'
-                    )
+                    description.append(f'{medal} #{i} - {entry.display_name}: {entry.highest_score} points')
 
                 embed, file = await self.create_embed(
                     EmbedType.NORMAL,
@@ -405,13 +372,9 @@ class GTAQuizCog(BaseCog):
             if not entry:
                 description = "You haven't played any games yet!"
             else:
-                description = (
-                    f'Rank: #{entry.place}\nHighest Score: {entry.highest_score}'
-                )
+                description = f'Rank: #{entry.place}\nHighest Score: {entry.highest_score}'
 
-            embed, file = await self.create_embed(
-                EmbedType.NORMAL, f"🎮 {ctx.author.name}'s Stats", description
-            )
+            embed, file = await self.create_embed(EmbedType.NORMAL, f"🎮 {ctx.author.name}'s Stats", description)
             await ctx.send(embed=embed, file=file)
 
         except Exception as e:
@@ -441,20 +404,12 @@ class GTAQuizCog(BaseCog):
                 filled = round((countdown / self.service.LOADING_TIME) * total_width)
                 progress_bar = f'`{"█" * filled}{"░" * (total_width - filled)}`'
 
-                player_names = (
-                    f'<@{player_id}>'
-                    for player_id in self.service.get_game(channel_id).players.keys()
-                )
+                player_names = (f'<@{player_id}>' for player_id in self.service.get_game(channel_id).players.keys())
 
                 embed, _ = await self.create_embed(
                     type=EmbedType.NORMAL,
                     title='🎮 Guess The Anime Quiz',
-                    description=(
-                        f'Game starting in `{countdown}` seconds!\n'
-                        f'{progress_bar}\n\n'
-                        f'Player(s): {", ".join(player_names)}\n\n'
-                        'Press the button to join!'
-                    ),
+                    description=(f'Game starting in `{countdown}` seconds!\n{progress_bar}\n\nPlayer(s): {", ".join(player_names)}\n\nPress the button to join!'),
                 )
 
                 await message.edit(embed=embed)
@@ -472,9 +427,7 @@ class GTAQuizCog(BaseCog):
                 logger.warning(f'No players joined game in channel {channel_id}')
                 return
 
-            logger.info(
-                f'Starting game in channel {channel_id} with {len(game.players)} players'
-            )
+            logger.info(f'Starting game in channel {channel_id} with {len(game.players)} players')
             if not self.service.start_game(channel_id):
                 logger.error(f'Failed to start game in channel {channel_id}')
                 channel = self.bot.get_channel(channel_id)
@@ -523,16 +476,12 @@ class GTAQuizCog(BaseCog):
                         correct_answer,
                     ) = await self.service.get_round_data(channel_id)
                     if not image_file:
-                        await channel.send(
-                            'Failed to load image for this round. Trying next round...'
-                        )
+                        await channel.send('Failed to load image for this round. Trying next round...')
                         continue
 
                     game = self.service.get_game(channel_id)
                     current_round_difficulty = self.service.get_current_difficulty(game)
-                    game.round_feedback.append(
-                        f'The correct answer was: **{correct_answer}**'
-                    )
+                    game.round_feedback.append(f'The correct answer was: **{correct_answer}**')
 
                     logger.info(f'Round started - Channel: {channel_id}')
                     logger.info(f'Correct answer is: {correct_answer}')
@@ -549,9 +498,7 @@ class GTAQuizCog(BaseCog):
                     self.service.ROUND_TIME,
                 )
 
-                round_msg = await channel.send(
-                    embed=base_embed, file=image_file, view=view
-                )
+                round_msg = await channel.send(embed=base_embed, file=image_file, view=view)
 
                 for i in range(self.service.ROUND_TIME - 1, -1, -1):
                     if self.service.have_all_players_answered(channel_id):
@@ -560,9 +507,7 @@ class GTAQuizCog(BaseCog):
 
                     await asyncio.sleep(1)
                     try:
-                        updated_embed = await self._create_round_embed(
-                            channel_id, options, i, base_embed=round_msg.embeds[0]
-                        )
+                        updated_embed = await self._create_round_embed(channel_id, options, i, base_embed=round_msg.embeds[0])
                         await round_msg.edit(embed=updated_embed)
                     except discord.NotFound:
                         break
@@ -572,14 +517,8 @@ class GTAQuizCog(BaseCog):
                     timeout_messages = ["⏰ Time's up!"]
                     for player_name, lives in timed_out_players:
                         hearts = '❤️' * lives
-                        status = (
-                            'has been eliminated! 💀'
-                            if lives <= 0
-                            else f'has {hearts} remaining'
-                        )
-                        timeout_messages.append(
-                            f"⚠️ {player_name} didn't answer and {status}"
-                        )
+                        status = 'has been eliminated! 💀' if lives <= 0 else f'has {hearts} remaining'
+                        timeout_messages.append(f"⚠️ {player_name} didn't answer and {status}")
                     await channel.send('\n'.join(timeout_messages))
 
                 await channel.send('\n'.join(game.round_feedback))
@@ -597,9 +536,7 @@ class GTAQuizCog(BaseCog):
             await channel.send('An error occurred during the game.')
             self.service.cleanup_game(channel_id)
 
-    async def _handle_answer(
-        self, interaction: discord.Interaction, answer: str, correct_answer: str
-    ) -> None:
+    async def _handle_answer(self, interaction: discord.Interaction, answer: str, correct_answer: str) -> None:
         """
         Process a player's answer and provide feedback.
 
@@ -621,34 +558,24 @@ class GTAQuizCog(BaseCog):
         try:
             game_state = self.service.get_game(interaction.channel.id)
             if not game_state:
-                await interaction.response.send_message(
-                    'No active game found!', ephemeral=True
-                )
+                await interaction.response.send_message('No active game found!', ephemeral=True)
                 return
 
             if interaction.user.id in game_state.timed_out_players:
-                await interaction.response.send_message(
-                    'Your answer came too late!', ephemeral=True
-                )
+                await interaction.response.send_message('Your answer came too late!', ephemeral=True)
                 return
 
             if game_state.processing_answers:
-                await interaction.response.send_message(
-                    'Processing another answer, please wait...', ephemeral=True
-                )
+                await interaction.response.send_message('Processing another answer, please wait...', ephemeral=True)
                 game_state.answered_players.remove(interaction.user.id)
                 return
 
             game_state.processing_answers = True
 
-            is_correct, is_eliminated, new_high_score = self.service.process_answer(
-                interaction.channel.id, interaction.user.id, answer, correct_answer
-            )
+            is_correct, is_eliminated, new_high_score = self.service.process_answer(interaction.channel.id, interaction.user.id, answer, correct_answer)
 
             if is_correct:
-                game_state.round_feedback.append(
-                    f'✅ {interaction.user.name} got it right!'
-                )
+                game_state.round_feedback.append(f'✅ {interaction.user.name} got it right!')
             else:
                 player = game_state.players[interaction.user.id]
                 if is_eliminated:
@@ -659,27 +586,19 @@ class GTAQuizCog(BaseCog):
                     game_state.round_feedback.append(elimination_message)
                 else:
                     hearts = '❤️' * player.lives
-                    game_state.round_feedback.append(
-                        f'❌ {interaction.user.name} got it wrong and has {hearts} remaining.'
-                    )
+                    game_state.round_feedback.append(f'❌ {interaction.user.name} got it wrong and has {hearts} remaining.')
 
         except Exception as e:
             logger.error(f'Error handling answer: {e}', exc_info=True)
             try:
-                await interaction.response.send_message(
-                    'An error occurred processing your answer.', ephemeral=True
-                )
+                await interaction.response.send_message('An error occurred processing your answer.', ephemeral=True)
             except discord.errors.InteractionResponded:
-                await interaction.followup.send(
-                    'An error occurred processing your answer.', ephemeral=True
-                )
+                await interaction.followup.send('An error occurred processing your answer.', ephemeral=True)
         finally:
             if game_state:
                 game_state.processing_answers = False
 
-    async def _show_game_results(
-        self, channel: discord.TextChannel, final_scores: Optional[Dict[int, int]]
-    ) -> None:
+    async def _show_game_results(self, channel: discord.TextChannel, final_scores: Optional[Dict[int, int]]) -> None:
         """
         Display the final results of a completed game.
 

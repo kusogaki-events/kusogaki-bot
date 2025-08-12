@@ -13,6 +13,8 @@ dependencies = [
     "python-dotenv>=1.0.1",
     "sqlalchemy>=2.0.37",
     "watchdog>=6.0.0",
+    "dnspython>=2.7.0",
+    "pymongo>=4.13.2"
 ]
 
 [dependency-groups]
@@ -26,3 +28,10 @@ ignore = ["DEP001", "DEP003"]
 
 [tool.deptry.per_rule_ignores]
 DEP002 = ["psycopg2-binary", "audioop-lts", "deptry"]
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["kusogaki_bot"]

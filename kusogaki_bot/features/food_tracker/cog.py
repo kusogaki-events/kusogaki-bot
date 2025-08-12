@@ -14,17 +14,15 @@ class FoodCounterCog(BaseCog):
         super().__init__(bot)
         self.service = FoodCounterService()
 
-    async def send_food_mention_embed(self, channel, user, count: int):
+    async def send_food_mention_embed(self, channel, count: int):
         """Create and send food mention embed"""
         description = f"""
-{user.mention}, your caseoh is showing! Adding to the total amount of times you've mentioned food.
+            <@{AWAIZ_USER_ID}>, your caseoh is showing! Adding to the total amount of times you've mentioned food.
 
-**Total is now**: {count}
+            **Total is now**: {count}
         """
 
-        embed, _ = await self.create_embed(
-            EmbedType.NORMAL, 'Awaiz has mentioned food!', description
-        )
+        embed, _ = await self.create_embed(EmbedType.NORMAL, 'Awaiz has mentioned food!', description)
 
         file = File('static/caseoh.png', filename='caseoh.png')
         embed.set_thumbnail(url='attachment://caseoh.png')
@@ -34,28 +32,18 @@ class FoodCounterCog(BaseCog):
     @commands.command(name='awaiz', aliases=['caseoh'])
     async def food_mention(self, ctx: commands.Context):
         """Increment food mention counter for Awaiz"""
-        awaiz = await self.bot.fetch_user(AWAIZ_USER_ID)
-        if not awaiz:
-            return
 
-        count = self.service.increment_counter(AWAIZ_USER_ID)
-        await self.send_food_mention_embed(ctx.channel, awaiz, count)
+        count = await self.service.increment_counter()
+        await self.send_food_mention_embed(ctx.channel, count)
 
     @commands.command(name='awaizcount', aliases=['drywall'])
     async def food_count(self, ctx: commands.Context):
         """Display food mention count for Awaiz"""
-        awaiz = await self.bot.fetch_user(AWAIZ_USER_ID)
-        if not awaiz:
-            return
 
-        count = self.service.get_count(AWAIZ_USER_ID)
-        description = f"""
-He's eaten everything. {awaiz.mention} has talked about food {count} time(s). I guess he'll start eating drywall soon.
-            """
+        count = await self.service.get_count(AWAIZ_USER_ID)
+        description = f"He's eaten everything. <@{AWAIZ_USER_ID}> has talked about food {count} time(s). I guess he'll start eating drywall soon."
 
-        embed, _ = await self.create_embed(
-            EmbedType.NORMAL, 'Awaiz Food Counter', description
-        )
+        embed, _ = await self.create_embed(EmbedType.NORMAL, 'Awaiz Food Counter', description)
 
         file = File('static/drywall.png', filename='drywall.png')
         embed.set_thumbnail(url='attachment://drywall.png')

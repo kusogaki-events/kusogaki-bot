@@ -5,12 +5,8 @@ from datetime import datetime
 from enum import Enum
 from typing import Dict, List, Optional, Set, Tuple
 
-from sqlalchemy import Column, Index, Integer, String, desc, func, select
-from sqlalchemy.orm import declarative_base
-
 from kusogaki_bot.core import DatabaseError
-
-Base = declarative_base()
+from kusogaki_bot.core.db import MongoDatabase
 
 
 class GameDifficulty(Enum):
@@ -81,53 +77,43 @@ class GameState:
     current_round_difficulty: Optional[str] = None
 
 
-class GTAImage(Base):
-    """Database model for anime screenshots"""
+class GTAImage:
+    """GTA Image container"""
 
-    __tablename__ = 'gta_images'
-
-    id = Column(Integer, primary_key=True)
-    difficulty = Column(String, nullable=False)
-    link = Column(String, nullable=False)
-    anime_name = Column(String, nullable=False)
+    id: int = None
+    difficulty: str = None
+    link: str = None
+    anime_name: str = None
 
 
-class LeaderboardEntry(Base):
-    """Database model for leaderboard entries"""
+class LeaderboardEntry:
+    """Leaderboard Entry Container"""
 
-    __tablename__ = 'gta_game_leaderboard'
-
-    id = Column(Integer, primary_key=True)
-    user = Column(String, unique=True, nullable=False, index=True)
-    display_name = Column(String, nullable=False)
-    highest_score = Column(Integer, nullable=False, default=0, index=True)
-    place = Column(Integer, nullable=False, index=True)
-
-    __table_args__ = (Index('idx_gta_leaderboard_score_desc', highest_score.desc()),)
+    id: int = None
+    user: str = None
+    display_name: str = None
+    highest_score: int = None
+    place: int = None
 
 
 class GTARepository:
     """Repository for GTA game data operations"""
 
-    def __init__(self, session_factory) -> None:
+    def __init__(self) -> None:
         """
         Initialize the GTA repository.
-
-        Args:
-            session_factory: SQLAlchemy session factory for database operations.
         """
-        self.session_factory = session_factory
 
-    def get_images_batch(
-        self, difficulty: str, used_ids: Set[int], batch_size: int = 20
-    ) -> List[Tuple[GTAImage, List[str]]]:
+        self.db = MongoDatabase.get_db()
+
+    async def get_images_batch(self, difficulty: str, used_ids: Set[int], limit: int = 20) -> List[Tuple[GTAImage, List[str]]]:
         """
         Get a batch of random images and their options efficiently.
 
         Args:
             difficulty (str): The difficulty level to filter images by.
             used_ids (Set[int]): Set of image IDs that have already been used.
-            batch_size (int, optional): Number of images to retrieve. Defaults to 20.
+            limit (int, optional): Number of images to retrieve. Defaults to 20.
 
         Returns:
             List[Tuple[GTAImage, List[str]]]: List of tuples containing image objects and their wrong options.
@@ -135,44 +121,45 @@ class GTARepository:
         Raises:
             DatabaseError: If there's an error retrieving images from the database.
         """
-        with self.session_factory() as session:
-            try:
-                stmt = (
-                    select(GTAImage)
-                    .where(
-                        func.lower(GTAImage.difficulty) == difficulty.lower(),
-                        ~GTAImage.id.in_(used_ids),
-                    )
-                    .order_by(func.random())
-                    .limit(batch_size)
-                )
 
-                images = list(session.execute(stmt).scalars().all())
-                if not images:
-                    return []
+        try:
+            images_query = {'difficulty': difficulty.capitalize(), 'id': {'$nin': used_ids}}
+            names_query = {'difficulty': difficulty.capitalize()}
 
-                stmt = select(GTAImage.anime_name).where(
-                    func.lower(GTAImage.difficulty) == difficulty.lower()
-                )
-                all_names = list(session.execute(stmt).scalars().all())
+            images: List[GTAImage] = []
+            names: List[str] = []
 
-                result = []
-                for image in images:
-                    wrong_options = [
-                        name for name in all_names if name != image.anime_name
-                    ]
-                    if len(wrong_options) > 10:
-                        wrong_options = random.sample(wrong_options, 10)
-                    result.append((image, wrong_options))
+            image_cursor = self.db['gta-images'].find(images_query, projection={'_id': False}, limit=limit)
+            names_cursor = self.db['gta_images'].find(names_query, projection={'anime_name': True, '_id': False})
 
-                return result
-            except Exception as e:
-                logger.error(f'Failed to get image batch: {str(e)}')
-                raise DatabaseError(f'Failed to get image batch: {str(e)}') from e
+            async for image in image_cursor:
+                gta_image: GTAImage = GTAImage()
 
-    def get_random_unused_image(
-        self, difficulty: str, used_ids: set[int]
-    ) -> Optional[Tuple[GTAImage, List[str]]]:
+                gta_image.id = image.get('id')
+                gta_image.anime_name = image.get('anime_name')
+                gta_image.difficulty = image.get('difficulty')
+                gta_image.link = image.get('link')
+
+                images.append(gta_image)
+
+            async for name in names_cursor:
+                names.append(name.get('anime_name'))
+
+            results: List[Tuple[GTAImage, list[str]]] = []
+
+            for image in images:
+                incorrect_options = [name for name in names if name != image.anime_name]
+                if len(incorrect_options) > 10:
+                    incorrect_options = random.sample(incorrect_options, 10)
+
+                results.append((image, incorrect_options))
+
+            return results
+        except Exception as e:
+            logger.error(f'Failed to get image batch: {str(e)}')
+            raise DatabaseError(f'Failed to get image batch: {str(e)}') from e
+
+    async def get_random_unused_image(self, difficulty: str, used_ids: set[int]) -> Optional[Tuple[GTAImage, List[str]]]:
         """
         Get random unused image and wrong options strictly matching the difficulty.
 
@@ -187,53 +174,37 @@ class GTARepository:
         Raises:
             DatabaseError: If there's an error retrieving the image from the database.
         """
-        with self.session_factory() as session:
-            try:
-                normalized_difficulty = difficulty.lower()
-                logger.info(
-                    f'Querying database for images with difficulty: {normalized_difficulty}'
-                )
 
-                stmt = (
-                    select(GTAImage)
-                    .where(
-                        func.lower(GTAImage.difficulty) == normalized_difficulty,
-                        ~GTAImage.id.in_(used_ids),
-                    )
-                    .order_by(func.random())
-                )
-                images = session.execute(stmt).scalars().all()
+        try:
+            images_query = {'difficulty': difficulty.capitalize(), 'id': {'$nin': used_ids}}
+            names_query = {'difficulty': difficulty.capitalize()}
 
-                logger.info(
-                    f'Found {len(images)} images for difficulty {normalized_difficulty}'
-                )
+            names: List[str] = []
 
-                if not images:
-                    return None
+            image_cursor = await self.db['gta-images'].find_one(images_query, projection={'_id': False})
+            names_cursor = self.db['gta_images'].find(names_query, projection={'anime_name': True, '_id': False})
 
-                image = images[0]
-                logger.info(
-                    f'Selected image link {image.link} with ID {image.id} with difficulty {image.difficulty}'
-                )
+            gta_image: GTAImage = GTAImage()
 
-                stmt = (
-                    select(GTAImage.anime_name)
-                    .where(
-                        GTAImage.anime_name != image.anime_name,
-                        func.lower(GTAImage.difficulty) == normalized_difficulty,
-                    )
-                    .order_by(func.random())
-                )
-                wrong_options = session.execute(stmt).scalars().all()
+            gta_image.id = image_cursor.get('id')
+            gta_image.anime_name = image_cursor.get('anime_name')
+            gta_image.difficulty = image_cursor.get('difficulty')
+            gta_image.link = image_cursor.get('link')
 
-                return image, wrong_options
-            except Exception as e:
-                logger.error(f'Failed to get random unused image: {str(e)}')
-                raise DatabaseError(
-                    f'Failed to get random unused image: {str(e)}'
-                ) from e
+            async for name in names_cursor:
+                if name == gta_image.anime_name:
+                    continue
+                names.append(name.get('anime_name'))
 
-    def get_leaderboard(self, limit: int = 5) -> List[LeaderboardEntry]:
+            incorrect_options = random.sample(names, 10)
+
+            return (gta_image, incorrect_options)
+
+        except Exception as e:
+            logger.error(f'Failed to get random unused image: {str(e)}')
+            raise DatabaseError(f'Failed to get random unused image: {str(e)}') from e
+
+    async def get_leaderboard(self, limit: int = 5) -> List[LeaderboardEntry]:
         """
         Get top leaderboard entries.
 
@@ -246,20 +217,30 @@ class GTARepository:
         Raises:
             DatabaseError: If there's an error retrieving leaderboard entries.
         """
-        with self.session_factory() as session:
-            try:
-                stmt = (
-                    select(LeaderboardEntry)
-                    .order_by(desc(LeaderboardEntry.highest_score))
-                    .limit(limit)
-                )
-                result = session.execute(stmt)
-                return list(result.scalars().all())
-            except Exception as e:
-                logger.error(f'Failed to get leaderboard: {str(e)}')
-                raise DatabaseError(f'Failed to get leaderboard: {str(e)}') from e
 
-    def get_player_entry(self, user_id: int) -> Optional[LeaderboardEntry]:
+        try:
+            leaderboard_cursor = self.db['gta_game_leaderboard'].find({}, limit=limit).sort({'highest_score': -1})
+
+            results: List[LeaderboardEntry] = []
+
+            async for leaderboard_entry in leaderboard_cursor:
+                entry: LeaderboardEntry = LeaderboardEntry()
+
+                entry.id = leaderboard_entry.get('id')
+                entry.user = leaderboard_entry.get('user')
+                entry.highest_score = leaderboard_entry.get('highest_score')
+                entry.place = leaderboard_entry.get('place')
+                entry.display_name = leaderboard_entry.get('display_name')
+
+                results.append(entry)
+
+            return results
+
+        except Exception as e:
+            logger.error(f'Failed to get leaderboard: {str(e)}')
+            raise DatabaseError(f'Failed to get leaderboard: {str(e)}') from e
+
+    async def get_player_entry(self, user_id: int) -> Optional[LeaderboardEntry]:
         """
         Get a player's leaderboard entry.
 
@@ -272,19 +253,27 @@ class GTARepository:
         Raises:
             DatabaseError: If there's an error retrieving the player entry.
         """
-        with self.session_factory() as session:
-            try:
-                stmt = select(LeaderboardEntry).where(
-                    LeaderboardEntry.user == str(user_id)
-                )
-                return session.execute(stmt).scalar_one_or_none()
-            except Exception as e:
-                logger.error(f'Failed to get player entry: {str(e)}')
-                raise DatabaseError(f'Failed to get player entry: {str(e)}') from e
 
-    def update_player_score(
-        self, user_id: int, display_name: str, score: int
-    ) -> Optional[int]:
+        try:
+            query = {'user': str(user_id)}
+
+            leaderboard_cursor = await self.db['gta_game_leaderboard'].find_one(query)
+
+            entry: LeaderboardEntry = LeaderboardEntry()
+
+            entry.id = leaderboard_cursor.get('id')
+            entry.user = leaderboard_cursor.get('user')
+            entry.highest_score = leaderboard_cursor.get('highest_score')
+            entry.place = leaderboard_cursor.get('place')
+            entry.display_name = leaderboard_cursor.get('display_name')
+
+            return entry
+
+        except Exception as e:
+            logger.error(f'Failed to get player entry: {str(e)}')
+            raise DatabaseError(f'Failed to get player entry: {str(e)}') from e
+
+    async def update_player_score(self, user_id: int, display_name: str, score: int) -> Optional[int]:
         """
         Update a player's score.
 
@@ -299,42 +288,31 @@ class GTARepository:
         Raises:
             DatabaseError: If there's an error updating the player's score.
         """
-        with self.session_factory() as session:
-            try:
-                entry = session.execute(
-                    select(LeaderboardEntry).where(
-                        LeaderboardEntry.user == str(user_id)
-                    )
-                ).scalar_one_or_none()
 
-                is_new_high_score = False
+        try:
+            query = {'user': str(user_id)}
 
-                if entry:
-                    if score > entry.highest_score:
-                        entry.highest_score = score
-                        entry.display_name = display_name
-                        is_new_high_score = True
+            user_details = await self.db['gta_game_leaderboard'].find_one(query)
+
+            if user_details:
+                if user_details.get('highest_score') < score:
+                    updates = {'display_name': display_name, 'highest_score': score}
+                    await self.db['gta_game_leaderboard'].update_one(query, update={'$set': updates})
+                    await self._update_rankings()
                 else:
-                    entry = LeaderboardEntry(
-                        user=str(user_id),
-                        display_name=display_name,
-                        highest_score=score,
-                        place=0,
-                    )
-                    session.add(entry)
-                    is_new_high_score = True
+                    return user_details.get('highest_score')
 
-                if is_new_high_score:
-                    session.commit()
-                    self._update_rankings(session)
-                    return entry.highest_score
-                return None
-            except Exception as e:
-                session.rollback()
-                logger.error(f'Failed to update player score: {str(e)}')
-                raise DatabaseError(f'Failed to update player score: {str(e)}') from e
+            else:
+                user_details = {'user': user_id, 'display_name': display_name, 'highest_score': score, 'place': 0, 'id': 0}
+                await self.db['gta_game_leaderboard'].insert_one(user_details)
 
-    def _update_rankings(self, session) -> None:
+            return score
+
+        except Exception as e:
+            logger.error(f'Failed to update player score: {str(e)}')
+            raise DatabaseError(f'Failed to update player score: {str(e)}') from e
+
+    async def _update_rankings(self) -> None:
         """
         Update all rankings after a score change.
 
@@ -345,20 +323,13 @@ class GTARepository:
             DatabaseError: If there's an error updating the rankings.
         """
         try:
-            entries = (
-                session.execute(
-                    select(LeaderboardEntry).order_by(
-                        desc(LeaderboardEntry.highest_score)
-                    )
-                )
-                .scalars()
-                .all()
-            )
+            entries = entries = self.db['gta_game_leaderboard'].find({}).sort({'highest_score': -1})
 
-            for i, e in enumerate(entries, 1):
-                e.place = i
-            session.commit()
+            place = 1
+            async for entry in entries:
+                await self.db['gta_game_leaderboard'].update_one({'user': entry.get('user')}, update={'$set': {'place': place}})
+                place = place + 1
+
         except Exception as e:
-            session.rollback()
             logger.error(f'Failed to update rankings: {str(e)}')
             raise DatabaseError(f'Failed to update rankings: {str(e)}') from e

@@ -13,11 +13,12 @@ class FoodCounterService:
     @property
     def food_items(self) -> list[str]:
         """Cached list of food items to check"""
+
         if self._food_items is None:
             self._food_items = self.mention_repository.get_all_food_items()
         return self._food_items
 
-    def increment_counter(self, user_id: str) -> int:
+    async def increment_counter(self) -> int:
         """
         Increment food counter for a user and return new count
 
@@ -27,12 +28,10 @@ class FoodCounterService:
         Returns:
             int: Updated count
         """
-        counter = self.counter_repository.get_counter(user_id)
-        new_count = counter.increment()
-        self.counter_repository.save_counter(counter)
-        return new_count
 
-    def get_count(self, user_id: str) -> int:
+        return await self.counter_repository.inc_counter()
+
+    async def get_count(self, user_id: str) -> int:
         """
         Get current count for a user
 
@@ -42,5 +41,4 @@ class FoodCounterService:
         Returns:
             int: Current count
         """
-        counter = self.counter_repository.get_counter(user_id)
-        return counter.count
+        return await self.counter_repository.get_counter()
