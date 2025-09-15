@@ -14,7 +14,7 @@ jobs:
     if: ${{ github.event.workflow_run.conclusion == 'failure' }}
     steps:
       - name: Get PR Information
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         id: get-pr
         with:
           script: |
@@ -26,7 +26,7 @@ jobs:
             return response.data[0].number;
 
       - name: Manage Comments
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const prNumber = ${{ steps.get-pr.outputs.result }};
