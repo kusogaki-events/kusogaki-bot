@@ -90,7 +90,7 @@ class ImagePreloader:
                 return
 
             if hasattr(self.provider, 'get_images_batch'):
-                images_data = self.provider.get_images_batch(
+                images_data = await self.provider.get_images_batch(
                     category, self.used_images[category], self._batch_size
                 )
             else:
