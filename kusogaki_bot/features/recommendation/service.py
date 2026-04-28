@@ -20,8 +20,13 @@ class RecommendationService:
         self.known_manga_recs = {}
         self.known_anime_recs = {}
 
+    @staticmethod
+    def _signed_power_floor(x, p, f):
+        return min(abs(x) ** p, f) * (1 if x >= 0 else -1)
+
+    @staticmethod
     async def query_user_statistics(
-        self, anilist_username: str, media_type: str
+        anilist_username: str, media_type: str
     ) -> Optional[Dict]:
         """
         Queries anilist for user statistics used for weighting/scoring of animanga recommendations
@@ -82,8 +87,9 @@ class RecommendationService:
             logger.error(f'Failed to fetch user statistics for {anilist_username}')
         return None
 
+    @staticmethod
     async def query_media_recs(
-        self, anilist_username: str, media_type: str, watched_count: int
+        anilist_username: str, media_type: str, watched_count: int
     ) -> Optional[List[Dict]]:
         """
         Queries anilist for user list data used for weighting/scoring of animanga recommendations
@@ -103,13 +109,18 @@ class RecommendationService:
               entries {
                 score
                 status
+                progress
                 media {
                   id
+                  format
+                  episodes
+                  chapters
                   popularity
                   recommendations(sort: $sort, perPage: $perPage) {
                     nodes {
                       rating
                       mediaRecommendation {
+                        format
                         id
                         coverImage {
                           large
@@ -223,7 +234,7 @@ class RecommendationService:
         user_stats = user_data['statistics'][media_type]
         user_favorites = user_data['favourites'][media_type]
 
-        list_data = await self.query_media_recs(
+        list_data = await RecommendationService.query_media_recs(
             anilist_username=anilist_username,
             media_type=media_type,
             watched_count=user_stats['count'],
@@ -233,8 +244,11 @@ class RecommendationService:
 
         return list_data, user_stats, user_favorites
 
+    @staticmethod
     def calculate_rec_scores(
-        self, list_data: List[Dict], user_stats: Dict, user_favorites: List[int]
+        list_data: List[Dict],
+        user_stats: Dict,
+        user_favorites: List[int],
     ) -> List[MediaRec]:
         """
         Scoring algorithm for animanga recs
@@ -242,7 +256,7 @@ class RecommendationService:
         Args:
             list_data (list[dict]): Anilist media list collection data
             user_stats (dict): Anilist user statistics
-            user_favorites (list[int]): List of user favorited media IDs
+            user_favorites (list[int]): List of user favorited media IDsx
 
         Returns:
             list[MediaRec]: List of user's recommendations
@@ -260,24 +274,67 @@ class RecommendationService:
             if list_entry['media']['popularity'] > max_popularity:
                 max_popularity = list_entry['media']['popularity']
 
+        max_genre_z_score = 0
+        for genre in user_stats['genres']:
+            genre_z_score = (genre['meanScore'] - user_stats['meanScore']) / max(
+                user_stats['standardDeviation'], 1
+            )
+            if genre_z_score > max_genre_z_score:
+                max_genre_z_score = genre_z_score
+
         user_genre_scores = {}
         for genre in user_stats['genres']:
             genre_name = genre['genre']
             if not genre['meanScore']:
                 user_genre_scores[genre_name] = 0
             else:
+                genre_z_score = (genre['meanScore'] - user_stats['meanScore']) / max(
+                    user_stats['standardDeviation'], 1
+                )
                 user_genre_scores[genre_name] = (
-                    genre['meanScore'] - user_stats['meanScore']
-                ) / 100 + (genre['count'] - 0.5 * len(seen_show_ids)) / len(
-                    seen_show_ids
-                ) * model.genre_count_weight
+                    RecommendationService._signed_power_floor(
+                        x=genre_z_score
+                        / max(max_genre_z_score, 0.001)
+                        * model.genre_user_score_weight,
+                        p=1,
+                        f=model.genre_user_score_max,
+                    )
+                )
+                user_genre_scores[genre_name] += (
+                    RecommendationService._signed_power_floor(
+                        x=(genre['count'] - 0.40 * len(seen_show_ids))
+                        / len(seen_show_ids),
+                        p=0.6,
+                        f=model.genre_count_score_max,
+                    )
+                    * model.genre_count_weight
+                )
 
-        recommendation_scores: dict[int:MediaRec] = {}
+        recommendation_scores = {}
         for list_entry in list_data:
             if not list_entry['media']['recommendations']['nodes']:
                 continue
+
             if list_entry['status'] == 'DROPPED':
                 continue
+
+            # If source show isn't complete, weight recommendations by % of media viewed
+            if list_entry['status'] in ('PAUSED', 'CURRENT'):
+                if not list_entry['progress']:
+                    list_entry['progress'] = 0
+
+                if list_entry['media']['episodes']:
+                    progress_weight = (
+                        list_entry['progress'] / list_entry['media']['episodes']
+                    )
+                elif list_entry['media']['chapters']:
+                    progress_weight = (
+                        list_entry['progress'] / list_entry['media']['chapters']
+                    )
+                else:
+                    progress_weight = 0
+            else:
+                progress_weight = 1
 
             # Weight each show's recommendation by strength of recommendation on the site
             max_show_recs = max(8, len(list_entry['media']['recommendations']['nodes']))
@@ -302,7 +359,7 @@ class RecommendationService:
                 # Filter out bad data from anilist
                 if media_rec is None:
                     continue
-                if media_rec['id'] in seen_show_ids:
+                if media_rec['id'] in seen_show_ids or media_rec['format'] == 'MUSIC':
                     continue
                 if not media_rec['meanScore']:
                     media_rec['meanScore'] = model.global_mean
@@ -322,7 +379,6 @@ class RecommendationService:
                     logger.debug(
                         f'No related media found for {media_rec["title"]["romaji"]}'
                     )
-                    pass
 
                 rec_pop_factor = 1 - media_rec['popularity'] / max_popularity
                 rec_pop_factor = (
@@ -332,6 +388,7 @@ class RecommendationService:
                 node_score = (
                     model.node_score_weight
                     * (list_entry['score'] / max_score - user_stats['meanScore'] / 100)
+                    / max(user_stats['standardDeviation'], 1)
                     if list_entry['score'] != 0
                     else 0
                 )
@@ -351,25 +408,30 @@ class RecommendationService:
                         logger.debug(
                             f'No user data for {genre} in {media_rec["title"]["romaji"]}, skipping genre score'
                         )
-                    rec_genre_score *= model.rec_genre_score_weight
+
+                rec_genre_score *= model.rec_genre_score_weight
 
                 total_rec_score = (
                     (node_score + rec_show_score + rec_genre_score)
                     * rec_total_weight
                     * rec_pop_factor
                     * favorite_weight
+                    * progress_weight
                 )
                 if media_rec['id'] not in recommendation_scores:
                     recommendation_scores[media_rec['id']] = MediaRec(
                         media_id=media_rec['id'],
                         title=media_rec['title']['romaji'],
-                        genres=[genre.lower() for genre in media_rec['genres']],
+                        genres=media_rec['genres'],
                         cover_url=media_rec['coverImage']['large'],
                         mean_score=media_rec['meanScore'],
                     )
                 recommendation_scores[media_rec['id']].score += total_rec_score
 
         recommendation_scores = list(recommendation_scores.values())
+
+        if not recommendation_scores:
+            return recommendation_scores
 
         for rec in recommendation_scores:
             rec.score *= uniform(1 + model.score_variation, 1 - model.score_variation)
