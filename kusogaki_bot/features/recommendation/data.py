@@ -30,9 +30,9 @@ class RecScoringModel:
     """Contains weights/factors/corrections for animanga rec scoring"""
 
     global_mean = 65
-    genre_count_weight = 1.2
+    genre_count_weight = 1.3
     genre_count_score_max = 1
-    genre_user_score_weight = 0.9
+    genre_user_score_weight = 0.8
     genre_user_score_max = 2
     popularity_exp = 1.3
     global_scale_exp = 0.35
